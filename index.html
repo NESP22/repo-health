@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<title>Repo Health</title>
+<style>
+:root{--bg:#0b1220;--card:#151d2e;--line:#242f45;--ink:#e8edf7;--muted:#8b97ad;--green:#25c26e;--greenbg:#12321f;--red:#f2564d;--redbg:#3a1512;--amber:#f0b429;--amberbg:#3a2e0e;--gray:#586074;--graybg:#1b2334}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;padding:14px 12px 40px;padding-top:calc(env(safe-area-inset-top) + 12px)}
+.top{display:flex;align-items:center;gap:10px;margin:2px 2px 12px}
+h1{font-size:19px;margin:0;font-weight:800;flex:1}
+.dot{width:12px;height:12px;border-radius:50%;flex:0 0 auto}
+.sub{font-size:12px;color:var(--muted);margin:0 2px 14px}
+button{font:inherit;border:0;border-radius:10px;padding:9px 14px;font-weight:700}
+.refresh{background:#22304d;color:#cdd8ec}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit}
+.badge{width:34px;height:34px;border-radius:9px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800}
+.g{background:var(--greenbg);color:var(--green)}.r{background:var(--redbg);color:var(--red)}.a{background:var(--amberbg);color:var(--amber)}.x{background:var(--graybg);color:var(--gray)}
+.cbody{flex:1;min-width:0}.cname{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmeta{font-size:12px;color:var(--muted);margin-top:2px}
+.setup{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:8px}
+.setup h2{font-size:16px;margin:0 0 8px}.setup p{font-size:13px;color:var(--muted);line-height:1.5}
+.setup input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:#0e1626;color:var(--ink);font-size:14px;margin:8px 0}
+.setup button{background:var(--green);color:#04140a;width:100%;margin-top:6px}
+a.small{color:#6ea8ff;font-size:12px}
+.err{background:var(--redbg);border:1px solid #5a2420;border-radius:12px;padding:12px;font-size:13px;color:#ffb4ad;margin-bottom:12px}
+</style></head><body><div id="app"></div><script>
+const API="https://api.github.com",KEY="gh_health_token",MAX=40;
+function tok(){return localStorage.getItem(KEY)||""}
+function setup(msg){document.getElementById("app").innerHTML=`<div class="top"><h1>Repo Health</h1></div>${msg?`<div class="err">${msg}</div>`:""}<div class="setup"><h2>One-time setup</h2><p>Paste a GitHub fine-grained token with Actions: Read + Metadata: Read. Stored only on this phone; sent only to GitHub.</p><input id="t" type="password" placeholder="github_pat_..." autocomplete="off"><button onclick="save()">Save &amp; load</button><p style="margin-top:12px"><a class="small" href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noopener">Create a token →</a></p></div>`}
+function save(){const v=document.getElementById("t").value.trim();if(!v)return;localStorage.setItem(KEY,v);load()}
+async function gh(p){const r=await fetch(API+p,{headers:{Authorization:"Bearer "+tok(),Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"}});if(r.status===401)throw{code:401};if(!r.ok)throw{code:r.status};return r.json()}
+function glyph(run){if(!run)return["•","x","no CI"];if(run.status==="queued"||run.status==="in_progress")return["◐","a","running"];const c=run.conclusion;if(c==="success")return["✓","g","passing"];if(["failure","timed_out","startup_failure"].includes(c))return["✗","r","FAILING"];if(c==="cancelled")return["⊘","x","cancelled"];return["•","x",c||"—"]}
+function ago(i){if(!i)return"";const s=(Date.now()-new Date(i))/1000;if(s<3600)return Math.max(1,Math.round(s/60))+"m ago";if(s<86400)return Math.round(s/3600)+"h ago";return Math.round(s/86400)+"d ago"}
+async function load(){if(!tok())return setup();document.getElementById("app").innerHTML='<div class="top"><h1>Repo Health</h1></div><div class="sub">Loading…</div>';let repos;try{repos=await gh("/user/repos?per_page=100&sort=pushed&affiliation=owner,organization_member")}catch(e){return e.code===401?setup("Token rejected — check scopes/expiry."):setup("GitHub error "+(e.code||""))}const total=repos.length;repos=repos.slice(0,MAX);const out=[];let nf=0,nr=0,no=0;for(const rp of repos){let run=null;try{const d=await gh(`/repos/${rp.full_name}/actions/runs?per_page=1`);run=(d.workflow_runs||[])[0]||null}catch(e){if(e.code===401)return setup("Token expired or was revoked — paste a new one.")}const[ic,cl,lab]=glyph(run);if(cl==="r")nf++;else if(cl==="a")nr++;else if(cl==="g")no++;out.push({name:rp.name,ic,cl,lab,url:rp.html_url+"/actions",when:run?ago(run.updated_at):"",ord:{r:0,a:1,g:2,x:3}[cl]})}out.sort((x,y)=>x.ord-y.ord||x.name.localeCompare(y.name));const dc=nf?"var(--red)":nr?"var(--amber)":"var(--green)";const trunc=total>MAX?` · showing ${MAX} of ${total}`:"";let h=`<div class="top"><span class="dot" style="background:${dc}"></span><h1>Repo Health</h1><button class="refresh" onclick="load()">↻</button></div><div class="sub">${no} passing · ${nf} failing · ${nr} running${trunc} · ${new Date().toLocaleTimeString()}</div>`;for(const r of out){h+=`<a class="card" href="${r.url}" target="_blank" rel="noopener"><div class="badge ${r.cl}">${r.ic}</div><div class="cbody"><div class="cname">${r.name}</div><div class="cmeta">${r.lab}${r.when?" · "+r.when:""}</div></div></a>`}document.getElementById("app").innerHTML=h}
+load();
+</script></body></html>
