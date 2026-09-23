@@ -1,0 +1,3 @@
+# Cross-platform line-ending safety: shell scripts must keep LF so the shebang
+# and CR-free syntax work on macOS regardless of the machine's core.autocrlf.
+*.sh text eol=lf
