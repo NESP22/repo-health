@@ -1,0 +1,3 @@
+# Workspace infrastructure: Hermes/Kanban task worktrees (one per task).
+# Checkout artifacts, never repo content — keep `git status` clean.
+.worktrees/
